@@ -8,7 +8,7 @@ Designed for **Azure App Service (Linux)** and intended to be consumed by an **e
 ## Endpoints
 
 ### `POST /route`
-Calculates the fastest route (no live traffic data). 
+Calculates the fastest route (no live traffic data).
 
 **Request Body (JSON):**
 ```json
