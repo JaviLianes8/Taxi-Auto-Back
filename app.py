@@ -8,14 +8,39 @@ This service is designed for deployment on Azure App Service and for consumption
 by external frontends (e.g., web clients, mobile apps).
 
 Author: Javier Lianes García
-Version: 1.0
+Version: 1.1
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
+from flask_cors import CORS
 import requests
 import os
 
 app = Flask(__name__)
+
+# ---------------------------------------------------------------------------
+# CORS (habilitado SIEMPRE para simplificar)
+# ---------------------------------------------------------------------------
+# Permite cualquier origen y maneja preflight automáticamente.
+# Si luego quieres restringir, cambia origins="*" por una lista o regex p.ej. r"^https://.*\.vercel\.app$"
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    allow_headers=["Content-Type"],
+    methods=["GET", "POST", "OPTIONS"],
+    max_age=600,
+)
+
+# Respuesta explícita a OPTIONS en /route (algunos proxies/CDN son quisquillosos)
+@app.route("/route", methods=["OPTIONS"])
+def route_options():
+    resp = make_response("", 204)
+    origin = request.headers.get("Origin", "*")
+    resp.headers["Access-Control-Allow-Origin"] = origin
+    resp.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    resp.headers["Vary"] = "Origin"
+    return resp
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -24,15 +49,6 @@ app = Flask(__name__)
 OSRM_BASE = os.environ.get("OSRM_BASE", "https://router.project-osrm.org")
 # Timeout in seconds for OSRM HTTP requests
 TIMEOUT = float(os.environ.get("OSRM_TIMEOUT", "15"))
-
-# Optional: enable simple CORS support if frontend is hosted separately
-if os.environ.get("ENABLE_CORS") == "1":
-    try:
-        from flask_cors import CORS
-        CORS(app, resources={r"/*": {"origins": os.environ.get("CORS_ORIGINS", "*")}})
-    except Exception:
-        pass  # If flask-cors is not installed, continue without CORS
-
 
 # ---------------------------------------------------------------------------
 # Health Check Endpoint
@@ -44,7 +60,6 @@ def health():
     Returns HTTP 200 with {"status": "ok"} when the service is up.
     """
     return {"status": "ok"}
-
 
 # ---------------------------------------------------------------------------
 # Routing Endpoint
@@ -113,7 +128,6 @@ def route():
         "duration_s": route.get("duration"),
         "geometry": route.get("geometry")
     })
-
 
 # ---------------------------------------------------------------------------
 # Application Entry Point
