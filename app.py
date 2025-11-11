@@ -46,7 +46,7 @@ def route_options():
 # Configuration
 # ---------------------------------------------------------------------------
 # Default OSRM endpoint (uses public demo server if not overridden)
-OSRM_BASE = os.environ.get("OSRM_BASE", "https://router.project-osrm.org")
+OSRM_BASE = os.environ.get("OSRM_BASE", "http://localhost:5001")
 # Timeout in seconds for OSRM HTTP requests
 TIMEOUT = float(os.environ.get("OSRM_TIMEOUT", "15"))
 
