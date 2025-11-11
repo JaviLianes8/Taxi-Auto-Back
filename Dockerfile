@@ -35,4 +35,4 @@ EXPOSE 5000 5001
 
 # Start both OSRM (shortest-distance mode) and Flask API
 CMD osrm-routed /data/spain-latest.osrm --port 5001 --algorithm=MLD & \
-    gunicorn -w 2 -k gthread -b 0.0.0.0:5000 app:app
+    gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT app:app
