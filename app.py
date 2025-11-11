@@ -1,28 +1,30 @@
 """
 Route Backend API
 =================
-A lightweight Flask backend that calculates the fastest driving route between
-two geographic coordinates using the public OSRM (Open Source Routing Machine) API.
+A lightweight Flask backend that calculates the *shortest* driving route (by
+distance in meters) between two geographic coordinates using the public OSRM
+(Open Source Routing Machine) API.
 
 This service is designed for deployment on Azure App Service and for consumption
 by external frontends (e.g., web clients, mobile apps).
 
 Author: Javier Lianes García
-Version: 1.1
+Version: 1.2
 """
 
 from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 import requests
 import os
+from math import inf
 
 app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
-# CORS (habilitado SIEMPRE para simplificar)
+# CORS (enabled ALWAYS for simplicity)
 # ---------------------------------------------------------------------------
-# Permite cualquier origen y maneja preflight automáticamente.
-# Si luego quieres restringir, cambia origins="*" por una lista o regex p.ej. r"^https://.*\.vercel\.app$"
+# Allows any origin and handles preflight automatically.
+# If you want to restrict later, change origins="*" to a list or regex, e.g. r"^https://.*\\.vercel\\.app$"
 CORS(
     app,
     resources={r"/*": {"origins": "*"}},
@@ -31,7 +33,7 @@ CORS(
     max_age=600,
 )
 
-# Respuesta explícita a OPTIONS en /route (algunos proxies/CDN son quisquillosos)
+# Explicit OPTIONS response on /route (some proxies/CDNs are picky)
 @app.route("/route", methods=["OPTIONS"])
 def route_options():
     resp = make_response("", 204)
@@ -45,10 +47,12 @@ def route_options():
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-# Default OSRM endpoint (uses public demo server if not overridden)
+# Default OSRM endpoint (uses the public demo server if not overridden)
 OSRM_BASE = os.environ.get("OSRM_BASE", "https://router.project-osrm.org")
 # Timeout in seconds for OSRM HTTP requests
 TIMEOUT = float(os.environ.get("OSRM_TIMEOUT", "15"))
+# Whether to request alternatives from OSRM to pick the shortest one
+REQUEST_ALTERNATIVES = os.environ.get("OSRM_ALTERNATIVES", "true").lower() in ("1", "true", "yes")
 
 # ---------------------------------------------------------------------------
 # Health Check Endpoint
@@ -62,12 +66,13 @@ def health():
     return {"status": "ok"}
 
 # ---------------------------------------------------------------------------
-# Routing Endpoint
+# Routing Endpoint (returns the SHORTEST route by distance)
 # ---------------------------------------------------------------------------
 @app.post("/route")
 def route():
     """
-    Calculate the fastest route between two points using OSRM.
+    Calculate the shortest route (by distance in meters) between two points
+    using OSRM. The API contract (endpoint & response shape) is preserved.
 
     **Request Body (JSON):**
         {
@@ -77,9 +82,9 @@ def route():
 
     **Response (200 OK):**
         {
-            "distance_m": <float>,     # total distance in meters
-            "duration_s": <float>,     # total duration in seconds
-            "geometry": {              # GeoJSON LineString of the route
+            "distance_m": <float>,     # total distance in meters (shortest among alternatives)
+            "duration_s": <float>,     # total duration in seconds (for the chosen shortest route)
+            "geometry": {              # GeoJSON LineString of the chosen route
                 "type": "LineString",
                 "coordinates": [[lon, lat], ...]
             }
@@ -89,6 +94,14 @@ def route():
         400 - Invalid request body.
         404 - No route found.
         502 - Upstream OSRM failure.
+
+    **Implementation note:**
+        - This endpoint requests OSRM route alternatives and selects the one
+          with the minimum `distance`. On the public OSRM server, "alternatives"
+          are not guaranteed to include the absolute globally-shortest path,
+          but in practice this yields the shortest among the provided options.
+        - For a hard guarantee of shortest-by-distance, you must run your own
+          OSRM instance with a distance-weighted profile (weight_name="distance").
     """
     data = request.get_json(silent=True) or {}
 
@@ -102,10 +115,14 @@ def route():
     # OSRM expects coordinates as lon,lat
     coords = f"{lon1},{lat1};{lon2},{lat2}"
     url = f"{OSRM_BASE}/route/v1/driving/{coords}"
+
+    # Ask for alternatives to be able to choose the shortest by distance
     params = {
         "overview": "full",
         "geometries": "geojson",
-        "steps": "false"
+        "steps": "false",
+        # true = OSRM returns 1..N routes; we will pick the one with min distance
+        "alternatives": "true" if REQUEST_ALTERNATIVES else "false",
     }
 
     # Perform the OSRM request
@@ -118,15 +135,17 @@ def route():
         return jsonify({"error": "OSRM response error", "status": r.status_code, "body": r.text}), 502
 
     resp = r.json()
-    if "routes" not in resp or not resp["routes"]:
+    routes = resp.get("routes") or []
+    if not routes:
         return jsonify({"error": "No route found"}), 404
 
-    route = resp["routes"][0]
+    # Choose the route with the smallest distance (meters)
+    shortest = min(routes, key=lambda rt: rt.get("distance", inf))
 
     return jsonify({
-        "distance_m": route.get("distance"),
-        "duration_s": route.get("duration"),
-        "geometry": route.get("geometry")
+        "distance_m": shortest.get("distance"),
+        "duration_s": shortest.get("duration"),
+        "geometry": shortest.get("geometry")
     })
 
 # ---------------------------------------------------------------------------
