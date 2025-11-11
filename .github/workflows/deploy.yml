@@ -12,9 +12,11 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      # Build Docker image using the Dockerfile
       - name: Build Docker image
         run: docker build -t taxi-auto-back:latest .
 
+      # Deploy built image directly to Azure Web App (Docker)
       - name: Deploy Docker image to Azure
         uses: azure/webapps-deploy@v3
         with:

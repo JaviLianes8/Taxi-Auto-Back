@@ -1,11 +1,11 @@
 """
 Route Backend API
 =================
-A lightweight Flask backend that calculates the fastest driving route between
-two geographic coordinates using the public OSRM (Open Source Routing Machine) API.
+A lightweight Flask backend that calculates the shortest driving route between
+two geographic coordinates using an internal OSRM (Open Source Routing Machine) server.
 
-This service is designed for deployment on Azure App Service and for consumption
-by external frontends (e.g., web clients, mobile apps).
+Designed for deployment on Azure App Service as a Docker container.
+Can also work with the public OSRM server if desired.
 
 Author: Javier Lianes García
 Version: 1.1
@@ -19,10 +19,10 @@ import os
 app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
-# CORS (habilitado SIEMPRE para simplificar)
+# CORS CONFIGURATION
 # ---------------------------------------------------------------------------
-# Permite cualquier origen y maneja preflight automáticamente.
-# Si luego quieres restringir, cambia origins="*" por una lista o regex p.ej. r"^https://.*\.vercel\.app$"
+# Allow all origins for simplicity.
+# If you want to restrict, replace "*" with a specific domain or regex.
 CORS(
     app,
     resources={r"/*": {"origins": "*"}},
@@ -31,7 +31,7 @@ CORS(
     max_age=600,
 )
 
-# Respuesta explícita a OPTIONS en /route (algunos proxies/CDN son quisquillosos)
+# Explicit OPTIONS handler for /route (helps with some CDNs and proxies)
 @app.route("/route", methods=["OPTIONS"])
 def route_options():
     resp = make_response("", 204)
@@ -43,31 +43,32 @@ def route_options():
     return resp
 
 # ---------------------------------------------------------------------------
-# Configuration
+# CONFIGURATION
 # ---------------------------------------------------------------------------
-# Default OSRM endpoint (uses public demo server if not overridden)
-OSRM_BASE = os.environ.get("OSRM_BASE", "https://router.project-osrm.org")
+# Default OSRM endpoint (uses local OSRM running on port 5001)
+# You can override it using an environment variable OSRM_BASE
+OSRM_BASE = os.environ.get("OSRM_BASE", "http://localhost:5001")
 # Timeout in seconds for OSRM HTTP requests
 TIMEOUT = float(os.environ.get("OSRM_TIMEOUT", "15"))
 
 # ---------------------------------------------------------------------------
-# Health Check Endpoint
+# HEALTH CHECK ENDPOINT
 # ---------------------------------------------------------------------------
 @app.get("/health")
 def health():
     """
-    Health check endpoint.
-    Returns HTTP 200 with {"status": "ok"} when the service is up.
+    Simple health check endpoint.
+    Returns HTTP 200 with {"status": "ok"} if the service is running.
     """
     return {"status": "ok"}
 
 # ---------------------------------------------------------------------------
-# Routing Endpoint
+# ROUTING ENDPOINT
 # ---------------------------------------------------------------------------
 @app.post("/route")
 def route():
     """
-    Calculate the fastest route between two points using OSRM.
+    Calculate the shortest route between two points using OSRM.
 
     **Request Body (JSON):**
         {
@@ -86,13 +87,13 @@ def route():
         }
 
     **Error Responses:**
-        400 - Invalid request body.
-        404 - No route found.
-        502 - Upstream OSRM failure.
+        400 - Invalid request body
+        404 - No route found
+        502 - OSRM request failed
     """
     data = request.get_json(silent=True) or {}
 
-    # Validate input format
+    # Validate JSON input format
     try:
         lat1, lon1 = data["from"]
         lat2, lon2 = data["to"]
@@ -108,7 +109,7 @@ def route():
         "steps": "false"
     }
 
-    # Perform the OSRM request
+    # Call OSRM backend
     try:
         r = requests.get(url, params=params, timeout=TIMEOUT)
     except requests.exceptions.RequestException as e:
@@ -130,13 +131,12 @@ def route():
     })
 
 # ---------------------------------------------------------------------------
-# Application Entry Point
+# APP ENTRY POINT
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     """
-    Run the Flask development server (for local use only).
-    In Azure, Gunicorn should be used instead:
-        gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT app:app
+    Run Flask development server (for local testing only).
+    In Azure, Gunicorn (defined in Dockerfile) is used instead.
     """
     port = int(os.environ.get("PORT", "5000"))
     app.run(host="0.0.0.0", port=port, debug=False)
