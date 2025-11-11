@@ -1,4 +1,4 @@
-name: Deploy to Azure Web App (simple)
+name: Deploy to Azure Web App (Docker)
 
 on:
   push:
@@ -7,15 +7,17 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout source code
+        uses: actions/checkout@v4
 
-      - name: Zip source
-        run: zip -r app.zip .
+      - name: Build Docker image
+        run: docker build -t taxi-auto-back:latest .
 
-      - name: Deploy to Azure WebApp
+      - name: Deploy Docker image to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: Taxi-auto-back
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: app.zip
+          images: taxi-auto-back:latest
