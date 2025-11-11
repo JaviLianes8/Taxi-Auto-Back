@@ -2,7 +2,7 @@
 Route Backend API
 =================
 Flask backend that calculates the **shortest** driving route (by distance)
-between two geographic coordinates using a local OSRM server.
+between two geographic coordinates using an OSRM server (no traffic).
 
 Author: Javier Lianes García
 Version: 1.1
@@ -40,7 +40,8 @@ def route_options():
 # ---------------------------------------------------------------------------
 # CONFIGURATION
 # ---------------------------------------------------------------------------
-OSRM_BASE = os.environ.get("OSRM_BASE", "http://localhost:5001")
+# IMPORTANT: Default to the docker-compose service name (osrm)
+OSRM_BASE = os.environ.get("OSRM_BASE", "http://osrm:5001")
 TIMEOUT = float(os.environ.get("OSRM_TIMEOUT", "15"))
 
 # ---------------------------------------------------------------------------
@@ -88,8 +89,8 @@ def route():
     })
 
 # ---------------------------------------------------------------------------
-# ENTRY POINT
+# ENTRY POINT (for local python run; in Docker we use gunicorn)
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8088"))  # 👈 custom port (for router)
+    port = int(os.environ.get("PORT", "8088"))
     app.run(host="0.0.0.0", port=port, debug=False)

@@ -1,9 +1,22 @@
-version: '3'
 services:
-  taxi-auto-back:
-    build: .
-    container_name: taxi-auto-back
+  osrm-distance-madrid:
+    build:
+      context: ./osrm
+      dockerfile: Dockerfile
+    container_name: osrm-distance-madrid
     ports:
-      - "8088:8088"  # Flask (tu API)
-      - "5001:5001"  # OSRM interno
+      - "5001:5001"
+    restart: unless-stopped
+
+  taxi-auto-back:
+    build:
+      context: .
+      dockerfile: Dockerfile   # el de tu API Flask
+    container_name: taxi-auto-back
+    environment:
+      - OSRM_BASE=http://osrm-distance-madrid:5001
+    depends_on:
+      - osrm-distance-madrid
+    ports:
+      - "8088:8088"
     restart: unless-stopped
