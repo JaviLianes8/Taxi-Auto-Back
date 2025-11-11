@@ -1,25 +1,99 @@
-name: Deploy to Azure Web App (Docker)
+/*
+===========================================================
+ GitHub Actions Workflow for Azure Web App Deployment (Docker)
+===========================================================
+ This workflow builds a Docker image from your repository
+ and deploys it automatically to Azure Web App whenever
+ new code is pushed to the "main" branch.
 
-on:
-  push:
-    branches: [ "main" ]
+ Author: Javier Lianes García
+ Version: 1.0
+===========================================================
+*/
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
+/*
+-----------------------------------------------------------
+ Workflow Name
+-----------------------------------------------------------
+*/
+# name: Deploy to Azure Web App (Docker)
 
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+/*
+-----------------------------------------------------------
+ Trigger
+-----------------------------------------------------------
+ The workflow runs whenever you push changes to the "main" branch.
+ You can modify the branch name if your deployment branch is different.
+*/
+# on:
+#   push:
+#     branches: [ "main" ]
 
-      # Build Docker image using the Dockerfile
-      - name: Build Docker image
-        run: docker build -t taxi-auto-back:latest .
+/*
+-----------------------------------------------------------
+ Job Definition
+-----------------------------------------------------------
+ The workflow contains a single job named "deploy" that runs
+ on the latest Ubuntu virtual machine provided by GitHub Actions.
+*/
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
 
-      # Deploy built image directly to Azure Web App (Docker)
-      - name: Deploy Docker image to Azure
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: Taxi-auto-back
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: taxi-auto-back:latest
+#     steps:
+#       /*
+#       -----------------------------------------------------
+#        Step 1: Checkout source code
+#       -----------------------------------------------------
+#        This action clones your GitHub repository into the
+#        workflow runner environment so that all project files
+#        (Dockerfile, app.py, etc.) are available for building.
+#       */
+#       - name: Checkout source code
+#         uses: actions/checkout@v4
+
+#       /*
+#       -----------------------------------------------------
+#        Step 2: Build Docker image
+#       -----------------------------------------------------
+#        This step runs `docker build` to create an image
+#        from your Dockerfile in the repository root.
+#        The image will be tagged as "taxi-auto-back:latest".
+#       */
+#       - name: Build Docker image
+#         run: docker build -t taxi-auto-back:latest .
+
+#       /*
+#       -----------------------------------------------------
+#        Step 3: Deploy to Azure Web App (Docker)
+#       -----------------------------------------------------
+#        This uses Azure’s official GitHub Action to deploy
+#        the Docker image to your configured Web App.
+#
+#        - app-name: must match the name of your Azure Web App
+#        - publish-profile: secret stored in GitHub with your
+#          Azure deployment credentials (in base64 format)
+#        - images: the Docker image tag you built above
+#
+#        When this step runs, Azure automatically pulls the
+#        Docker image and starts your Flask + OSRM container.
+#       */
+#       - name: Deploy Docker image to Azure
+#         uses: azure/webapps-deploy@v3
+#         with:
+#           app-name: Taxi-auto-back
+#           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+#           images: taxi-auto-back:latest
+
+/*
+===========================================================
+ How to re-enable this workflow
+===========================================================
+ 1. Remove the comment marks (#) at the start of each line.
+ 2. Commit the file again to your repository.
+ 3. Ensure that:
+     - Your Azure Web App is configured for Docker (Linux)
+     - The secret AZURE_WEBAPP_PUBLISH_PROFILE exists
+ 4. Push to "main" to trigger the deployment automatically.
+===========================================================
+*/

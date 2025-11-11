@@ -3,20 +3,20 @@
 # ----------------------------------------------------------
 FROM osrm/osrm-backend:latest AS osrm
 
-# Change routing profile from "duration" to "distance"
+# Use shortest path (distance) instead of fastest (duration)
 RUN sed -i "s/weight_name = 'duration'/weight_name = 'distance'/" /opt/car.lua
 
-# Download OpenStreetMap data (Spain region example)
+# Download OpenStreetMap data for the Madrid region (smaller & faster)
 WORKDIR /data
-RUN wget -q https://download.geofabrik.de/europe/spain-latest.osm.pbf
+RUN wget -q https://download.geofabrik.de/europe/spain/madrid-latest.osm.pbf
 
-# Preprocess map data using the modified profile
-RUN osrm-extract -p /opt/car.lua spain-latest.osm.pbf && \
-    osrm-partition spain-latest.osrm && \
-    osrm-customize spain-latest.osrm
+# Preprocess OSM data (build the graph)
+RUN osrm-extract -p /opt/car.lua madrid-latest.osm.pbf && \
+    osrm-partition madrid-latest.osrm && \
+    osrm-customize madrid-latest.osrm
 
 # ----------------------------------------------------------
-# Stage 2: Final runtime image with Flask + OSRM
+# Stage 2: Final runtime with Flask + OSRM
 # ----------------------------------------------------------
 FROM python:3.11-slim
 
@@ -26,12 +26,12 @@ COPY . /app
 # Install Python dependencies
 RUN pip install --no-cache-dir flask flask-cors requests gunicorn
 
-# Copy preprocessed OSRM data from the previous stage
+# Copy preprocessed OSRM data
 COPY --from=osrm /data /data
 
-# Expose Flask and OSRM ports
-EXPOSE 5000 5001
+# Expose Flask and OSRM ports (Flask: 8088, OSRM: 5001)
+EXPOSE 8088 5001
 
-# Start both OSRM and Flask API
-CMD osrm-routed /data/spain-latest.osrm --port 5001 --algorithm=MLD & \
-    gunicorn -w 2 -k gthread -b 0.0.0.0:$PORT app:app
+# Launch both servers
+CMD osrm-routed /data/madrid-latest.osrm --port 5001 --algorithm=MLD & \
+    gunicorn -w 2 -k gthread -b 0.0.0.0:8088 app:app
